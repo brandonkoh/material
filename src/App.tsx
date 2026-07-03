@@ -348,8 +348,44 @@ export default function App() {
     });
 
     const updated = [...requests, ...newRequests];
-    setRequests(updated);
-    triggerCloudPush(updated);
+
+    const activeUrl = window.GOOGLE_SCRIPT_URL || gasUrl;
+    if (!activeUrl) {
+      throw new Error("구글 시트 연동 URL이 설정되지 않았습니다.");
+    }
+
+    setSyncStatus("syncing");
+    setSyncMessage("구글 시트에 데이터 저장 중...");
+
+    try {
+      // POST the updated entire data to Google Sheets
+      const response = await fetch(activeUrl, {
+        method: "POST",
+        mode: "cors",
+        credentials: "omit",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify(updated)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Read response to ensure the request is fully processed
+      await response.text();
+
+      // Update local requests state only after successful sync
+      setRequests(updated);
+      setSyncStatus("success");
+      setSyncMessage("구글 시트 동기화 완료");
+    } catch (err: any) {
+      console.error("Direct GAS push on Excel import failed:", err);
+      setSyncStatus("error");
+      setSyncMessage("저장 실패 (구글 시트 동기화 오류)");
+      throw new Error("구글 시트 저장 실패");
+    }
   };
 
   // Helper: Delete Requests
