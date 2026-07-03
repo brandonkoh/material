@@ -73,7 +73,7 @@ export default function App() {
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Google Apps Script Web App URL state & status
-  const [gasUrl, setGasUrl] = useState<string>(() => getGasUrl());
+  const [gasUrl, setGasUrl] = useState<string>(() => window.GOOGLE_SCRIPT_URL || getGasUrl());
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
   const [syncMessage, setSyncMessage] = useState<string>("");
 
@@ -85,13 +85,14 @@ export default function App() {
       setIsLoaded(false);
       
       const initialData: PurchaseRequest[] = [...initialRequests];
+      const activeUrl = window.GOOGLE_SCRIPT_URL || gasUrl;
 
       // If GAS Web App URL is configured, pull the newest data from Google Sheets!
-      if (gasUrl) {
+      if (activeUrl) {
         setSyncStatus("syncing");
         setSyncMessage("구글 시트 연동 데이터 불러오는 중...");
         try {
-          const cloudData = await pullFromGas(gasUrl);
+          const cloudData = await pullFromGas(activeUrl);
           if (cloudData && cloudData.length > 0) {
             setRequests(cloudData);
             setSyncStatus("success");
@@ -99,7 +100,7 @@ export default function App() {
           } else {
             // If cloud is empty, initialize it with initialRequests!
             setRequests(initialData);
-            await pushToGas(gasUrl, initialData);
+            await pushToGas(activeUrl, initialData);
             setSyncStatus("success");
             setSyncMessage("구글 시트 연동 완료");
           }
@@ -162,11 +163,12 @@ export default function App() {
 
   // Helper to push updates to Google Sheets in the background
   const triggerCloudPush = async (updatedList: PurchaseRequest[]) => {
-    if (!gasUrl) return;
+    const activeUrl = window.GOOGLE_SCRIPT_URL || gasUrl;
+    if (!activeUrl) return;
     setSyncStatus("syncing");
     setSyncMessage("구글 시트에 데이터 저장 중...");
     try {
-      await pushToGas(gasUrl, updatedList);
+      await pushToGas(activeUrl, updatedList);
       setSyncStatus("success");
       setSyncMessage("구글 시트 동기화 완료");
     } catch (err: any) {
@@ -178,8 +180,9 @@ export default function App() {
 
   // Manual Pull function passed to AdminPasswordChange component
   const handleManualSyncPull = async (): Promise<number> => {
-    if (!gasUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
-    const data = await pullFromGas(gasUrl);
+    const activeUrl = window.GOOGLE_SCRIPT_URL || gasUrl;
+    if (!activeUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
+    const data = await pullFromGas(activeUrl);
     setRequests(data);
     setSyncStatus("success");
     setSyncMessage("구글 시트 동기화 완료");
@@ -188,8 +191,9 @@ export default function App() {
 
   // Manual Push function passed to AdminPasswordChange component
   const handleManualSyncPush = async (): Promise<number> => {
-    if (!gasUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
-    await pushToGas(gasUrl, requests);
+    const activeUrl = window.GOOGLE_SCRIPT_URL || gasUrl;
+    if (!activeUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
+    await pushToGas(activeUrl, requests);
     setSyncStatus("success");
     setSyncMessage("구글 시트 동기화 완료");
     return requests.length;
@@ -438,7 +442,7 @@ export default function App() {
                   syncStatus === "success" ? "bg-green-500 animate-pulse" :
                   syncStatus === "error" ? "bg-rose-500" : "bg-slate-300"
                 }`}></span>
-                <span>{syncMessage || (gasUrl ? "구글 시트 연동 대기" : "로컬 오프라인 모드")}</span>
+                <span>{syncMessage || (window.GOOGLE_SCRIPT_URL || gasUrl ? "구글 시트 연동 대기" : "로컬 오프라인 모드")}</span>
               </div>
 
               <button
