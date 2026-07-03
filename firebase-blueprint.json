@@ -1,0 +1,42 @@
+{
+  "entities": {
+    "PurchaseRequest": {
+      "title": "PurchaseRequest",
+      "description": "자재구매 신청서 전체 목록 및 상태",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "신청서 고유 ID"
+        },
+        "index": {
+          "type": "integer",
+          "description": "신청서 고유 인덱스 번호"
+        },
+        "date": {
+          "type": "string",
+          "description": "신청 일자"
+        },
+        "requester": {
+          "type": "string",
+          "description": "신청인 이름"
+        },
+        "items": {
+          "type": "array",
+          "description": "품목 목록"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "신청서 생성 일시"
+        }
+      },
+      "required": ["id", "index", "date", "requester", "items", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/requests/{requestId}": {
+      "schema": "PurchaseRequest",
+      "description": "자재구매 신청서 컬렉션"
+    }
+  }
+}

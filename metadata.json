@@ -1,0 +1,6 @@
+{
+  "name": "자재구매 신청 결재 관리 시스템",
+  "description": "자재구매에 대해 신청자, 결재자, 관리자 역할에 맞추어 신청, 결재, 카테고리 관리, 비밀번호 변경, 엑셀 업로드/다운로드를 지원하는 시스템입니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
