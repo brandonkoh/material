@@ -10,7 +10,7 @@ import { UserRole, PurchaseRequest, PurchaseItem } from "./types";
 import { initialCategories, Category } from "./data/categories";
 import { initialRequests } from "./data/initialRequests";
 // Local DB functions removed to prevent QuotaExceededError
-import { getGasUrl, setGasUrl as saveGasUrlToLocalStorage, pullFromGas, pushToGas } from "./utils/sync";
+import { getGasUrl, setGasUrl as saveGasUrlToLocalStorage, pullFromGas, pushToGas, robustParseData } from "./utils/sync";
 
 // Components
 import Login from "./components/Login";
@@ -90,12 +90,80 @@ export default function App() {
         setSyncStatus("syncing");
         setSyncMessage("구글 시트 연동 데이터 불러오는 중...");
         try {
-          const cloudData = await pullFromGas(activeUrl);
-          // If the cloud database is connected, strictly use its data (even if empty)!
-          // Do not restore or write back the initial mock samples.
-          setRequests(cloudData || []);
-          setSyncStatus("success");
-          setSyncMessage("구글 시트 동기화 완료");
+          // Direct fetch call for maximum custom parsing control as requested by the user
+          const response = await fetch(activeUrl, {
+            method: "GET",
+            mode: "cors",
+            credentials: "omit"
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const rawText = await response.text();
+          let parsedData: any = rawText;
+          
+          // [데이터 파싱 예외 처리] 문자열(JSON String) 형태로 감싸져 있다면 무조건 JSON.parse()
+          let parseAttempts = 0;
+          while (typeof parsedData === "string" && parseAttempts < 5) {
+            parseAttempts++;
+            const trimmed = parsedData.trim();
+            if (!trimmed) {
+              parsedData = [];
+              break;
+            }
+            try {
+              parsedData = JSON.parse(trimmed);
+            } catch (e) {
+              break; // Not a valid JSON string or fully parsed, break out
+            }
+          }
+          
+          // If the parsed data is wrapped in a response.data, response.requests, etc.
+          if (parsedData && typeof parsedData === "object" && !Array.isArray(parsedData)) {
+            if ("data" in parsedData) {
+              parsedData = parsedData.data;
+            } else if ("requests" in parsedData) {
+              parsedData = parsedData.requests;
+            } else if ("response" in parsedData && parsedData.response && typeof parsedData.response === "object") {
+              if ("data" in parsedData.response) {
+                parsedData = parsedData.response.data;
+              }
+            }
+          }
+          
+          // Parse string once more if it was nested stringified
+          parseAttempts = 0;
+          while (typeof parsedData === "string" && parseAttempts < 5) {
+            parseAttempts++;
+            const trimmed = parsedData.trim();
+            if (!trimmed) {
+              parsedData = [];
+              break;
+            }
+            try {
+              parsedData = JSON.parse(trimmed);
+            } catch (e) {
+              break;
+            }
+          }
+
+          // Convert utilizing our robust parsing utility (which converts 2D row arrays OR object arrays into PurchaseRequests)
+          const finalizedRequests = robustParseData(parsedData);
+          
+          if (finalizedRequests && finalizedRequests.length > 0) {
+            // 구글 시트에서 가져온 진짜 데이터가 존재하면, 기존의 초기 샘플 데이터 3개를 화면에서 완벽히 밀어내고 이 가져온 데이터 배열을 상태(state) 변수에 즉시 세팅
+            setRequests(finalizedRequests);
+            setSyncStatus("success");
+            setSyncMessage("구글 시트 동기화 완료");
+          } else {
+            // If the connected cloud sheet returns 0 rows (but connection succeeded), strictly set requests to empty
+            // to avoid recovering mock samples, in accordance with "완벽하게 격자 구조로 리스트업되지만... 전부 날아가버려" prevention
+            setRequests([]);
+            setSyncStatus("success");
+            setSyncMessage("구글 시트 동기화 완료 (내용 없음)");
+          }
         } catch (cloudErr: any) {
           console.error("Failed to pull from Google Sheets on login:", cloudErr);
           // On connection error, fallback to empty array to avoid unexpected sample recovery
