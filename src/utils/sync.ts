@@ -44,7 +44,13 @@ export function parseGasRows(rows: any[]): PurchaseRequest[] {
     // Skip header row
     const firstCol = String(row[0] || "").trim();
     const secondCol = String(row[1] || "").trim();
-    if (firstCol === "No" || secondCol === "문서번호" || firstCol === "문서번호") {
+    if (
+      firstCol === "No" || 
+      secondCol === "문서번호" || 
+      firstCol === "문서번호" || 
+      firstCol.toLowerCase() === "id" || 
+      firstCol.toLowerCase() === "index"
+    ) {
       continue;
     }
 
@@ -150,7 +156,7 @@ export function parseGasRows(rows: any[]): PurchaseRequest[] {
 
       // Parse items column
       const itemsCol = row[5];
-      const parsedItems: PurchaseItem[] = [];
+      const parsedItems: any[] = [];
 
       if (itemsCol) {
         if (Array.isArray(itemsCol)) {
@@ -188,9 +194,35 @@ export function parseGasRows(rows: any[]): PurchaseRequest[] {
         }
       }
 
+      // Map parsed items into strictly typed PurchaseItems
+      const mappedItems: PurchaseItem[] = parsedItems.filter(Boolean).map((it: any, idx: number) => {
+        return {
+          id: String(it.id || `item-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`),
+          bomCode: String(it.bomCode || ""),
+          date: String(it.date || rawDate),
+          division: String(it.division || "기타"),
+          sector: String(it.sector || "기타"),
+          item: String(it.item || "기타"),
+          itemName: String(it.itemName || ""),
+          quantity: Number(it.quantity !== undefined ? it.quantity : 1),
+          unit: String(it.unit || "EA"),
+          price: Number(it.price !== undefined ? it.price : 0),
+          remark: String(it.remark || ""),
+          photo: String(it.photo || ""),
+          photoName: String(it.photoName || ""),
+          buySite: String(it.buySite || ""),
+          stock: String(it.stock !== undefined ? it.stock : ""),
+          comment: String(it.comment || ""),
+          incomingStatus: String(it.incomingStatus === "입고완료" ? "입고완료" : "미입고") as "미입고" | "입고완료",
+          status: String(it.status === "결재" ? "결재" : it.status === "거부" ? "거부" : "대기") as "대기" | "결재" | "거부",
+          attachmentName: it.attachmentName ? String(it.attachmentName) : undefined,
+          attachmentData: it.attachmentData ? String(it.attachmentData) : undefined,
+        };
+      });
+
       if (requestMap.has(id)) {
         const existing = requestMap.get(id)!;
-        for (const item of parsedItems) {
+        for (const item of mappedItems) {
           if (item && item.id && !existing.items.some(it => it.id === item.id)) {
             existing.items.push(item);
           }
@@ -202,13 +234,188 @@ export function parseGasRows(rows: any[]): PurchaseRequest[] {
           date: rawDate,
           requester,
           createdAt,
-          items: parsedItems.filter(Boolean)
+          items: mappedItems
         });
       }
     }
   }
 
   return Array.from(requestMap.values()).sort((a, b) => a.index - b.index);
+}
+
+/**
+ * Robustly parses input of unknown format into typed PurchaseRequests
+ */
+export function robustParseData(data: any): PurchaseRequest[] {
+  let workingData = data;
+
+  // 1. Un-nest or un-wrap from object if wrapped (e.g. { status: 'success', data: [...] })
+  if (workingData && typeof workingData === "object" && !Array.isArray(workingData)) {
+    if ("data" in workingData) {
+      workingData = workingData.data;
+    } else if ("requests" in workingData) {
+      workingData = workingData.requests;
+    }
+  }
+
+  // 2. Recursively parse if it's a JSON string
+  let parseAttempts = 0;
+  while (typeof workingData === "string" && parseAttempts < 5) {
+    parseAttempts++;
+    const trimmed = workingData.trim();
+    if (!trimmed) {
+      return [];
+    }
+    try {
+      workingData = JSON.parse(trimmed);
+    } catch (e) {
+      // Not a valid JSON, break out of string loop
+      break;
+    }
+  }
+
+  // 3. Check again if parsed object has nested 'data' or 'requests'
+  if (workingData && typeof workingData === "object" && !Array.isArray(workingData)) {
+    if ("data" in workingData) {
+      workingData = workingData.data;
+    } else if ("requests" in workingData) {
+      workingData = workingData.requests;
+    }
+  }
+
+  // 4. One more round of parsing string if needed
+  parseAttempts = 0;
+  while (typeof workingData === "string" && parseAttempts < 5) {
+    parseAttempts++;
+    const trimmed = workingData.trim();
+    if (!trimmed) {
+      return [];
+    }
+    try {
+      workingData = JSON.parse(trimmed);
+    } catch (e) {
+      break;
+    }
+  }
+
+  // 5. Ensure we have an array
+  if (!Array.isArray(workingData)) {
+    return [];
+  }
+
+  if (workingData.length === 0) {
+    return [];
+  }
+
+  // 6. Check if it's a 2D array of spreadsheet rows
+  if (Array.isArray(workingData[0])) {
+    return parseGasRows(workingData);
+  }
+
+  // 7. Otherwise, assume it's already an array of PurchaseRequests (structured or partially structured objects)
+  const mappedRequests: PurchaseRequest[] = [];
+  
+  for (const item of workingData) {
+    if (!item || typeof item !== "object") continue;
+
+    // Check if it's a PurchaseRequest (has items array)
+    if (Array.isArray(item.items)) {
+      const mappedItems: PurchaseItem[] = item.items.map((it: any, itIdx: number) => {
+        return {
+          id: String(it.id || `item-${Date.now()}-${itIdx}-${Math.random().toString(36).substr(2, 4)}`),
+          bomCode: String(it.bomCode || ""),
+          date: String(it.date || item.date || new Date().toISOString().split("T")[0]),
+          division: String(it.division || "기타"),
+          sector: String(it.sector || "기타"),
+          item: String(it.item || "기타"),
+          itemName: String(it.itemName || ""),
+          quantity: Number(it.quantity !== undefined ? it.quantity : 1),
+          unit: String(it.unit || "EA"),
+          price: Number(it.price !== undefined ? it.price : 0),
+          remark: String(it.remark || ""),
+          photo: String(it.photo || ""),
+          photoName: String(it.photoName || ""),
+          buySite: String(it.buySite || ""),
+          stock: String(it.stock !== undefined ? it.stock : ""),
+          comment: String(it.comment || ""),
+          incomingStatus: String(it.incomingStatus === "입고완료" ? "입고완료" : "미입고") as "미입고" | "입고완료",
+          status: String(it.status === "결재" ? "결재" : it.status === "거부" ? "거부" : "대기") as "대기" | "결재" | "거부",
+          attachmentName: it.attachmentName ? String(it.attachmentName) : undefined,
+          attachmentData: it.attachmentData ? String(it.attachmentData) : undefined,
+        };
+      });
+
+      mappedRequests.push({
+        id: String(item.id || `req-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`),
+        index: Number(item.index || mappedRequests.length + 1),
+        date: String(item.date || new Date().toISOString().split("T")[0]),
+        requester: String(item.requester || "admin"),
+        items: mappedItems,
+        createdAt: String(item.createdAt || new Date().toISOString())
+      });
+    } else {
+      // If we got individual flat items instead of grouped requests, we group them!
+      // This is handled in the fallback step below.
+    }
+  }
+
+  if (mappedRequests.length > 0) {
+    return mappedRequests.sort((a, b) => a.index - b.index);
+  }
+
+  // 8. Fallback: If workingData is a flat list of individual purchase items, group them by date/requestId
+  const groups: Record<string, any[]> = {};
+  workingData.forEach((it: any) => {
+    if (!it || typeof it !== "object") return;
+    const docNo = String(it.docNo || it.docNum || it.requestId || "default");
+    const d = String(it.date || new Date().toISOString().split("T")[0]);
+    const key = docNo !== "default" ? docNo : d;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(it);
+  });
+
+  const keys = Object.keys(groups);
+  if (keys.length > 0) {
+    let indexCounter = 1;
+    keys.forEach(key => {
+      const itemsInGroup = groups[key];
+      const date = String(itemsInGroup[0].date || new Date().toISOString().split("T")[0]);
+      const requester = String(itemsInGroup[0].requester || "admin");
+      
+      const mappedItems: PurchaseItem[] = itemsInGroup.map((it: any, idx: number) => ({
+        id: String(it.id || `item-${Date.now()}-${idx}`),
+        bomCode: String(it.bomCode || ""),
+        date: String(it.date || date),
+        division: String(it.division || "기타"),
+        sector: String(it.sector || "기타"),
+        item: String(it.item || "기타"),
+        itemName: String(it.itemName || it.item_name || ""),
+        quantity: Number(it.quantity !== undefined ? it.quantity : it.qty !== undefined ? it.qty : 1),
+        unit: String(it.unit || "EA"),
+        price: Number(it.price !== undefined ? it.price : 0),
+        remark: String(it.remark || ""),
+        photo: String(it.photo || ""),
+        photoName: String(it.photoName || ""),
+        buySite: String(it.buySite || ""),
+        stock: String(it.stock !== undefined ? it.stock : ""),
+        comment: String(it.comment || ""),
+        incomingStatus: String(it.incomingStatus === "입고완료" ? "입고완료" : "미입고") as "미입고" | "입고완료",
+        status: String(it.status === "결재" ? "결재" : it.status === "거부" ? "거부" : "대기") as "대기" | "결재" | "거부",
+      }));
+
+      mappedRequests.push({
+        id: key.startsWith("req-") ? key : `req-${key}`,
+        index: indexCounter++,
+        date,
+        requester,
+        items: mappedItems,
+        createdAt: new Date().toISOString()
+      });
+    });
+    return mappedRequests;
+  }
+
+  return [];
 }
 
 /**
@@ -246,29 +453,11 @@ export async function pullFromGas(url?: string): Promise<PurchaseRequest[]> {
     }
 
     const dataText = await response.text();
-    if (!dataText) {
+    if (!dataText || dataText.trim() === "") {
       return [];
     }
 
-    const parsed = JSON.parse(dataText);
-    
-    // Check for wrapper object { status: 'success', data: [...] }
-    let rawList: any[] = [];
-    if (Array.isArray(parsed)) {
-      rawList = parsed;
-    } else if (parsed.data && Array.isArray(parsed.data)) {
-      rawList = parsed.data;
-    } else {
-      return [];
-    }
-
-    // If rawList consists of arrays (sheets rows format), parse them
-    if (rawList.length > 0 && Array.isArray(rawList[0])) {
-      return parseGasRows(rawList);
-    }
-
-    // Otherwise, assume it is already an array of PurchaseRequests
-    return rawList;
+    return robustParseData(dataText);
   } catch (error: any) {
     console.error("Failed to pull from Google Apps Script:", error);
     throw new Error(error.message || "구글 시트 데이터를 가져오는데 실패했습니다. URL 또는 CORS 설정을 확인하세요.");
