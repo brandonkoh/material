@@ -1,3 +1,5 @@
+// @ts-ignore
+window.GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbygg_04WmmWC2wmIk7jL21wBBDkp5CrGmHZNuMJysBaM9qNTbiA1DWfmJVtjDm5qcs-/exec";
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
