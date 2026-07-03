@@ -64,6 +64,10 @@ export default function Dashboard({
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState("");
 
+  // Excel progress tracking states
+  const [excelAction, setExcelAction] = useState<"none" | "import" | "export">("none");
+  const [excelProgress, setExcelProgress] = useState<number>(0);
+
   // Role details mapping
   const roleLabels: Record<UserRole, string> = {
     admin: "관리자 (admin)",
@@ -148,7 +152,7 @@ export default function Dashboard({
   };
 
   // Handle Export for Selected Period
-  const handleExportByPeriod = () => {
+  const handleExportByPeriod = async () => {
     if (filteredRequests.length === 0) {
       alert("해당 기간 또는 검색 조건에 맞는 구매 신청 데이터가 없습니다.");
       return;
@@ -186,7 +190,20 @@ export default function Dashboard({
 
     const dateRangeStr = startDate && endDate ? `_${startDate}_to_${endDate}` : "_전체기간";
     const searchSuffix = searchQuery.trim() ? `_검색_${searchQuery.trim()}` : "";
-    exportToExcel(allItems, `자재구매신청내역_집계${dateRangeStr}${searchSuffix}.xlsx`);
+    
+    setExcelAction("export");
+    setExcelProgress(0);
+    try {
+      await exportToExcel(allItems, `자재구매신청내역_집계${dateRangeStr}${searchSuffix}.xlsx`, (percent) => {
+        setExcelProgress(percent);
+      });
+    } catch (err) {
+      console.error("Export error:", err);
+    } finally {
+      setTimeout(() => {
+        setExcelAction("none");
+      }, 800);
+    }
   };
 
   // Handle Excel Upload (Admin only)
@@ -197,7 +214,12 @@ export default function Dashboard({
     try {
       setUploadError("");
       setUploadSuccess("");
-      const imported = await importFromExcel(file);
+      setExcelAction("import");
+      setExcelProgress(0);
+      
+      const imported = await importFromExcel(file, (percent) => {
+        setExcelProgress(percent);
+      });
 
       if (imported.length === 0) {
         throw new Error("가져올 유효한 자재구매 행이 없습니다.");
@@ -209,6 +231,10 @@ export default function Dashboard({
     } catch (err: any) {
       console.error("Upload error:", err);
       setUploadError(err.message || "엑셀 업로드 중 에러가 발생했습니다.");
+    } finally {
+      setTimeout(() => {
+        setExcelAction("none");
+      }, 800);
     }
   };
 
@@ -309,12 +335,21 @@ export default function Dashboard({
           <div>
             <button
               onClick={handleExportByPeriod}
+              disabled={excelAction !== "none"}
               id="btn-export-period-excel"
-              className="w-full py-1.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-950 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
+              className="w-full py-1.5 px-4 bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-800/60 text-white border border-emerald-950 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
             >
               <FileDown className="w-3.5 h-3.5" />
-              검색 결과 엑셀 다운로드
+              {excelAction === "export" ? `다운로드 중... (${excelProgress}%)` : "검색 결과 엑셀 다운로드"}
             </button>
+            {excelAction === "export" && (
+              <div className="w-full h-1.5 bg-slate-200 border border-slate-300 rounded-full overflow-hidden mt-1.5">
+                <div 
+                  className="h-full bg-emerald-600 transition-all duration-150" 
+                  style={{ width: `${excelProgress}%` }}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -332,17 +367,33 @@ export default function Dashboard({
                 </div>
 
                 <div>
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-4 py-2 bg-brand-dark hover:bg-white hover:text-brand-dark text-white border border-brand-dark text-xs font-bold transition-colors">
-                    엑셀 업로드 하기
+                  <label className={`cursor-pointer inline-flex items-center gap-1.5 px-4 py-2 ${excelAction === "import" ? "bg-brand-dark/40 cursor-not-allowed" : "bg-brand-dark hover:bg-white hover:text-brand-dark"} text-white border border-brand-dark text-xs font-bold transition-colors`}>
+                    {excelAction === "import" ? "업로드 중..." : "엑셀 업로드 하기"}
                     <input
                       type="file"
                       accept=".xlsx, .xls"
+                      disabled={excelAction === "import"}
                       onChange={handleExcelUpload}
                       className="hidden"
                     />
                   </label>
                 </div>
               </div>
+
+              {excelAction === "import" && (
+                <div className="mt-3 p-3 bg-white/60 border border-brand-dark/10 rounded-sm">
+                  <div className="flex justify-between items-center text-xs font-bold text-brand-dark mb-1 font-mono">
+                    <span>엑셀 데이터를 파싱하는 중...</span>
+                    <span>{excelProgress}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-200 border border-slate-300 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-brand-dark transition-all duration-150" 
+                      style={{ width: `${excelProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {uploadError && (
                 <p className="text-xs font-bold text-red-700 mt-2 pl-1 font-mono">⚠ {uploadError}</p>

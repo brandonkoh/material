@@ -33,6 +33,10 @@ export default function PurchaseRequestForm({
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [date, setDate] = useState("");
   const [isNew, setIsNew] = useState(true);
+  
+  // Single request excel download progress state
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
 
   // Load request details if editing
   useEffect(() => {
@@ -308,23 +312,48 @@ export default function PurchaseRequestForm({
           )}
 
           {!isNew && (
-            <button
-              type="button"
-              id="btn-single-request-excel-download"
-              onClick={() => {
-                const monthlyIdx = requestToEdit ? getRequestMonthlyIndex(requestToEdit, requests) : 1;
-                const docNumFormatted = formatDocNumber(date, monthlyIdx).replace(/\s/g, "_").replace(/\//g, "-");
-                const itemsWithIndex = items.map(itm => ({
-                  ...itm,
-                  index: globalIndicesMap.get(itm.id) || 1
-                }));
-                exportToExcel(itemsWithIndex, `${docNumFormatted}.xlsx`);
-              }}
-              className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-900 text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm"
-            >
-              <Download className="w-3.5 h-3.5" />
-              데이터 엑셀 다운로드
-            </button>
+            <div className="flex flex-col items-stretch sm:items-start gap-1">
+              <button
+                type="button"
+                id="btn-single-request-excel-download"
+                disabled={isExporting}
+                onClick={async () => {
+                  const monthlyIdx = requestToEdit ? getRequestMonthlyIndex(requestToEdit, requests) : 1;
+                  const docNumFormatted = formatDocNumber(date, monthlyIdx).replace(/\s/g, "_").replace(/\//g, "-");
+                  const itemsWithIndex = items.map(itm => ({
+                    ...itm,
+                    index: globalIndicesMap.get(itm.id) || 1
+                  }));
+                  
+                  setIsExporting(true);
+                  setExportProgress(0);
+                  try {
+                    await exportToExcel(itemsWithIndex, `${docNumFormatted}.xlsx`, (pct) => {
+                      setExportProgress(pct);
+                    });
+                  } catch (err) {
+                    console.error("Export error:", err);
+                  } finally {
+                    setTimeout(() => {
+                      setIsExporting(false);
+                    }, 800);
+                  }
+                }}
+                className="px-4 py-1.5 bg-emerald-700 hover:bg-emerald-800 disabled:bg-emerald-850 text-white border border-emerald-900 text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <Download className="w-3.5 h-3.5" />
+                {isExporting ? `다운로드 중... (${exportProgress}%)` : "데이터 엑셀 다운로드"}
+              </button>
+              
+              {isExporting && (
+                <div className="w-full max-w-[150px] h-1.5 bg-slate-200 border border-slate-300 rounded-full overflow-hidden mt-1">
+                  <div 
+                    className="h-full bg-emerald-600 transition-all duration-150" 
+                    style={{ width: `${exportProgress}%` }}
+                  />
+                </div>
+              )}
+            </div>
           )}
 
           <button

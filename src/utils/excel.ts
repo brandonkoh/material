@@ -94,7 +94,12 @@ function getImageDimensions(photoStr: string): Promise<{ width: number; height: 
 /**
  * Exports purchase items to an Excel file.
  */
-export async function exportToExcel(items: PurchaseItem[], filename: string = "자재구매신청서.xlsx") {
+export async function exportToExcel(
+  items: PurchaseItem[], 
+  filename: string = "자재구매신청서.xlsx",
+  onProgress?: (percent: number) => void
+) {
+  if (onProgress) onProgress(0);
   const workbook = new (getExcelJS().Workbook)();
   const worksheet = workbook.addWorksheet("자재구매신청서");
 
@@ -189,6 +194,12 @@ export async function exportToExcel(items: PurchaseItem[], filename: string = "�
           console.error("Failed to embed image in excel export:", err);
         }
       }
+    }
+
+    if (onProgress) {
+      onProgress(Math.round(((idx + 1) / items.length) * 100));
+      // Yield control slightly so that React renders progress bar smoothly
+      await new Promise(resolve => setTimeout(resolve, 5));
     }
   }
 
@@ -291,7 +302,7 @@ const getCellValue = (cell: ExcelJSType.Cell): string => {
 /**
  * Imports purchase items from an uploaded Excel file.
  */
-export async function importFromExcel(file: File): Promise<Partial<PurchaseItem>[]> {
+export async function importFromExcel(file: File, onProgress?: (percent: number) => void): Promise<Partial<PurchaseItem>[]> {
   try {
     const data = await file.arrayBuffer();
     const workbook = new (getExcelJS().Workbook)();
@@ -398,10 +409,20 @@ export async function importFromExcel(file: File): Promise<Partial<PurchaseItem>
       }
     }
 
+    if (onProgress) onProgress(0);
+
+    const rowsToProcess: ExcelJSType.Row[] = [];
+    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      if (rowNumber > headerRowIndex) {
+        rowsToProcess.push(row);
+      }
+    });
+
     const items: Partial<PurchaseItem>[] = [];
 
-    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      if (rowNumber <= headerRowIndex) return;
+    for (let idx = 0; idx < rowsToProcess.length; idx++) {
+      const row = rowsToProcess[idx];
+      const rowNumber = row.number;
 
       const item: Partial<PurchaseItem> = {
         id: `imported-${Date.now()}-${rowNumber}-${Math.random().toString(36).substr(2, 4)}`,
@@ -486,7 +507,13 @@ export async function importFromExcel(file: File): Promise<Partial<PurchaseItem>
 
         items.push(item);
       }
-    });
+
+      if (onProgress) {
+        onProgress(Math.round(((idx + 1) / rowsToProcess.length) * 100));
+        // Yield control slightly so that React renders progress bar smoothly
+        await new Promise(resolve => setTimeout(resolve, 5));
+      }
+    }
 
     return items;
   } catch (err) {
