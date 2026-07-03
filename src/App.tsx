@@ -91,20 +91,15 @@ export default function App() {
         setSyncMessage("구글 시트 연동 데이터 불러오는 중...");
         try {
           const cloudData = await pullFromGas(activeUrl);
-          if (cloudData && cloudData.length > 0) {
-            setRequests(cloudData);
-            setSyncStatus("success");
-            setSyncMessage("구글 시트 동기화 완료");
-          } else {
-            // If cloud is empty, initialize it with initialRequests!
-            setRequests(initialData);
-            await pushToGas(activeUrl, initialData);
-            setSyncStatus("success");
-            setSyncMessage("구글 시트 연동 완료");
-          }
+          // If the cloud database is connected, strictly use its data (even if empty)!
+          // Do not restore or write back the initial mock samples.
+          setRequests(cloudData || []);
+          setSyncStatus("success");
+          setSyncMessage("구글 시트 동기화 완료");
         } catch (cloudErr: any) {
           console.error("Failed to pull from Google Sheets on login:", cloudErr);
-          setRequests(initialData);
+          // On connection error, fallback to empty array to avoid unexpected sample recovery
+          setRequests([]);
           setSyncStatus("error");
           setSyncMessage("구글 시트 동기화 실패 (임시 오프라인 모드)");
         }

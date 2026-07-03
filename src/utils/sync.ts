@@ -41,73 +41,170 @@ export function parseGasRows(rows: any[]): PurchaseRequest[] {
   for (const row of rows) {
     if (!Array.isArray(row) || row.length < 5) continue;
 
-    const id = String(row[0] || "");
-    if (!id) continue;
-
-    const index = Number(row[1] || 1);
-    let rawDate = String(row[2] || "");
-    if (rawDate.includes("T")) {
-      rawDate = rawDate.split("T")[0];
+    // Skip header row
+    const firstCol = String(row[0] || "").trim();
+    const secondCol = String(row[1] || "").trim();
+    if (firstCol === "No" || secondCol === "문서번호" || firstCol === "문서번호") {
+      continue;
     }
-    const requester = String(row[3] || "");
-    const createdAt = String(row[4] || new Date().toISOString());
 
-    // Parse items column
-    const itemsCol = row[5];
-    const parsedItems: PurchaseItem[] = [];
+    // Determine format by row length
+    if (row.length >= 15) {
+      // Format 2: Item-centric rows (자재구매목록 format)
+      const docNum = String(row[1] || "").trim();
+      if (!docNum) continue;
 
-    if (itemsCol) {
-      if (Array.isArray(itemsCol)) {
-        parsedItems.push(...itemsCol);
-      } else if (typeof itemsCol === "object") {
-        parsedItems.push(itemsCol);
-      } else if (typeof itemsCol === "string") {
-        const str = itemsCol.trim();
-        if (str) {
-          if (str.startsWith("[") && str.endsWith("]")) {
-            try {
-              const json = JSON.parse(str);
-              if (Array.isArray(json)) {
-                parsedItems.push(...json);
-              }
-            } catch (e) {
-              const matches = str.match(/\{[^}]+\}/g);
-              if (matches) {
-                for (const m of matches) {
-                  parsedItems.push(parseGasItemString(m));
+      // Group key is docNum (e.g., "20260703-004")
+      const requestId = `req-${docNum}`;
+      const requester = String(row[2] || "알수없음");
+      
+      // Parse Date from docNum
+      let date = String(row[4] || "").trim();
+      if (!date && docNum.length >= 8) {
+        const yr = docNum.substring(0, 4);
+        const mn = docNum.substring(4, 6);
+        const dy = docNum.substring(6, 8);
+        date = `${yr}-${mn}-${dy}`;
+      }
+      if (date.includes("T")) {
+        date = date.split("T")[0];
+      }
+
+      // Parse index (e.g., "001" -> 1)
+      let index = 1;
+      const parts = docNum.split("-");
+      if (parts.length > 1) {
+        const parsedIdx = Number(parts[1]);
+        if (!isNaN(parsedIdx)) {
+          index = parsedIdx;
+        }
+      }
+
+      // Reconstruct single PurchaseItem
+      const bomCode = String(row[3] || "").trim();
+      const division = String(row[5] || "기타").trim();
+      const sector = String(row[6] || "기타").trim();
+      const itemType = String(row[7] || "기타").trim();
+      const itemName = String(row[8] || "").trim();
+      const quantity = Number(row[9] || 1);
+      const unit = String(row[10] || "EA").trim();
+      const price = Number(row[11] || 0);
+      const incomingStatus = String(row[13] || "미입고").trim() as "미입고" | "입고완료";
+      const status = String(row[14] || "대기").trim() as "대기" | "결재" | "거부";
+      const buySite = String(row[15] || "").trim();
+      const stock = String(row[16] || "0").trim();
+      const remark = String(row[17] || "").trim();
+      const comment = String(row[18] || "").trim();
+      
+      // Generate unique item ID
+      const itemId = `item-${docNum}-${bomCode || "no-bom"}-${itemName || "no-name"}-${index}`;
+
+      const purchaseItem: PurchaseItem = {
+        id: itemId,
+        bomCode,
+        date,
+        division,
+        sector,
+        item: itemType,
+        itemName,
+        quantity,
+        unit,
+        price,
+        incomingStatus,
+        status,
+        buySite,
+        stock,
+        remark,
+        comment,
+        photo: "" // photos are stored in system db if available
+      };
+
+      if (requestMap.has(requestId)) {
+        const existing = requestMap.get(requestId)!;
+        // Avoid duplicate items
+        if (!existing.items.some(it => it.itemName === purchaseItem.itemName && it.bomCode === purchaseItem.bomCode)) {
+          existing.items.push(purchaseItem);
+        }
+      } else {
+        requestMap.set(requestId, {
+          id: requestId,
+          index,
+          date,
+          requester,
+          createdAt: date + "T00:00:00Z",
+          items: [purchaseItem]
+        });
+      }
+    } else {
+      // Format 1: Request-centric rows (system db or wrapper list)
+      const id = String(row[0] || "");
+      if (!id) continue;
+
+      const index = Number(row[1] || 1);
+      let rawDate = String(row[2] || "");
+      if (rawDate.includes("T")) {
+        rawDate = rawDate.split("T")[0];
+      }
+      const requester = String(row[3] || "");
+      const createdAt = String(row[4] || new Date().toISOString());
+
+      // Parse items column
+      const itemsCol = row[5];
+      const parsedItems: PurchaseItem[] = [];
+
+      if (itemsCol) {
+        if (Array.isArray(itemsCol)) {
+          parsedItems.push(...itemsCol);
+        } else if (typeof itemsCol === "object") {
+          parsedItems.push(itemsCol);
+        } else if (typeof itemsCol === "string") {
+          const str = itemsCol.trim();
+          if (str) {
+            if (str.startsWith("[") && str.endsWith("]")) {
+              try {
+                const json = JSON.parse(str);
+                if (Array.isArray(json)) {
+                  parsedItems.push(...json);
+                }
+              } catch (e) {
+                const matches = str.match(/\{[^}]+\}/g);
+                if (matches) {
+                  for (const m of matches) {
+                    parsedItems.push(parseGasItemString(m));
+                  }
                 }
               }
-            }
-          } else if (str.startsWith("{") && str.endsWith("}")) {
-            try {
-              const json = JSON.parse(str);
-              parsedItems.push(json);
-            } catch (e) {
+            } else if (str.startsWith("{") && str.endsWith("}")) {
+              try {
+                const json = JSON.parse(str);
+                parsedItems.push(json);
+              } catch (e) {
+                parsedItems.push(parseGasItemString(str));
+              }
+            } else if (str.includes("=")) {
               parsedItems.push(parseGasItemString(str));
             }
-          } else if (str.includes("=")) {
-            parsedItems.push(parseGasItemString(str));
           }
         }
       }
-    }
 
-    if (requestMap.has(id)) {
-      const existing = requestMap.get(id)!;
-      for (const item of parsedItems) {
-        if (item && item.id && !existing.items.some(it => it.id === item.id)) {
-          existing.items.push(item);
+      if (requestMap.has(id)) {
+        const existing = requestMap.get(id)!;
+        for (const item of parsedItems) {
+          if (item && item.id && !existing.items.some(it => it.id === item.id)) {
+            existing.items.push(item);
+          }
         }
+      } else {
+        requestMap.set(id, {
+          id,
+          index,
+          date: rawDate,
+          requester,
+          createdAt,
+          items: parsedItems.filter(Boolean)
+        });
       }
-    } else {
-      requestMap.set(id, {
-        id,
-        index,
-        date: rawDate,
-        requester,
-        createdAt,
-        items: parsedItems.filter(Boolean)
-      });
     }
   }
 
