@@ -83,7 +83,7 @@ export default function App() {
       setIsLoaded(false);
       
       const initialData: PurchaseRequest[] = [...initialRequests];
-      const activeUrl = window.GOOGLE_SCRIPT_URL || gasUrl;
+      const activeUrl = "https://script.google.com/macros/s/AKfycbygg_04WmmWC2wmIk7jL21wBBDkp5CrGmHZNuMJysBaM9qNTbiA1DWfmJVtjDm5qcs-/exec";
 
       // If GAS Web App URL is configured, pull the newest data from Google Sheets!
       if (activeUrl) {
@@ -224,7 +224,7 @@ export default function App() {
 
   // Helper to push updates to Google Sheets in the background
   const triggerCloudPush = async (updatedList: PurchaseRequest[]) => {
-    const activeUrl = window.GOOGLE_SCRIPT_URL || gasUrl;
+    const activeUrl = "https://script.google.com/macros/s/AKfycbygg_04WmmWC2wmIk7jL21wBBDkp5CrGmHZNuMJysBaM9qNTbiA1DWfmJVtjDm5qcs-/exec";
     if (!activeUrl) return;
     setSyncStatus("syncing");
     setSyncMessage("구글 시트에 데이터 저장 중...");
@@ -241,7 +241,7 @@ export default function App() {
 
   // Manual Pull function passed to AdminPasswordChange component
   const handleManualSyncPull = async (): Promise<number> => {
-    const activeUrl = window.GOOGLE_SCRIPT_URL || gasUrl;
+    const activeUrl = "https://script.google.com/macros/s/AKfycbygg_04WmmWC2wmIk7jL21wBBDkp5CrGmHZNuMJysBaM9qNTbiA1DWfmJVtjDm5qcs-/exec";
     if (!activeUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
     const data = await pullFromGas(activeUrl);
     setRequests(data);
@@ -252,7 +252,7 @@ export default function App() {
 
   // Manual Push function passed to AdminPasswordChange component
   const handleManualSyncPush = async (): Promise<number> => {
-    const activeUrl = window.GOOGLE_SCRIPT_URL || gasUrl;
+    const activeUrl = "https://script.google.com/macros/s/AKfycbygg_04WmmWC2wmIk7jL21wBBDkp5CrGmHZNuMJysBaM9qNTbiA1DWfmJVtjDm5qcs-/exec";
     if (!activeUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
     await pushToGas(activeUrl, requests);
     setSyncStatus("success");
@@ -349,7 +349,7 @@ export default function App() {
 
     const updated = [...requests, ...newRequests];
 
-    const activeUrl = window.GOOGLE_SCRIPT_URL || gasUrl;
+    const activeUrl = "https://script.google.com/macros/s/AKfycbygg_04WmmWC2wmIk7jL21wBBDkp5CrGmHZNuMJysBaM9qNTbiA1DWfmJVtjDm5qcs-/exec";
     if (!activeUrl) {
       throw new Error("구글 시트 연동 URL이 설정되지 않았습니다.");
     }
