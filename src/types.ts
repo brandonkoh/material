@@ -3,6 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+declare global {
+  interface Window {
+    GOOGLE_SCRIPT_URL?: string;
+  }
+}
+
 export type UserRole = "admin" | "결재자" | "신청자";
 
 export interface User {

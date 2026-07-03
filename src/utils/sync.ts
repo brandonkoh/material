@@ -1,27 +1,25 @@
 import { PurchaseRequest } from "../types";
 
-const GAS_URL_KEY = "material_system_gas_url";
-
 /**
- * Get the saved Google Apps Script Web App URL from localStorage
+ * Get the saved Google Apps Script Web App URL from window.GOOGLE_SCRIPT_URL
  */
 export function getGasUrl(): string {
-  return localStorage.getItem(GAS_URL_KEY) || "";
+  return window.GOOGLE_SCRIPT_URL || "";
 }
 
 /**
- * Save the Google Apps Script Web App URL to localStorage
+ * Save the Google Apps Script Web App URL to window.GOOGLE_SCRIPT_URL
  */
 export function setGasUrl(url: string): void {
-  localStorage.setItem(GAS_URL_KEY, url.trim());
+  window.GOOGLE_SCRIPT_URL = url.trim();
 }
 
 /**
  * Fetch data from Google Apps Script (GET)
  */
-export async function pullFromGas(url: string): Promise<PurchaseRequest[]> {
-  const targetUrl = url.trim();
-  if (!targetUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
+export async function pullFromGas(url?: string): Promise<PurchaseRequest[]> {
+  const targetUrl = (window.GOOGLE_SCRIPT_URL || url || "").trim();
+  if (!targetUrl) throw new Error("GOOGLE_SCRIPT_URL이 설정되지 않았습니다.");
 
   try {
     // We fetch from the Google Apps Script Web App URL.
@@ -61,9 +59,9 @@ export async function pullFromGas(url: string): Promise<PurchaseRequest[]> {
 /**
  * Send data to Google Apps Script (POST) using text/plain to bypass CORS preflight blocking
  */
-export async function pushToGas(url: string, requests: PurchaseRequest[]): Promise<{ status: string; count?: number; message?: string }> {
-  const targetUrl = url.trim();
-  if (!targetUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
+export async function pushToGas(url: string | undefined, requests: PurchaseRequest[]): Promise<{ status: string; count?: number; message?: string }> {
+  const targetUrl = (window.GOOGLE_SCRIPT_URL || url || "").trim();
+  if (!targetUrl) throw new Error("GOOGLE_SCRIPT_URL이 설정되지 않았습니다.");
 
   try {
     // Send as text/plain;charset=utf-8 to prevent CORS preflight OPTIONS block
