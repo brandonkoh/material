@@ -361,17 +361,13 @@ export default function App() {
       // POST the updated entire data to Google Sheets
       const response = await fetch(activeUrl, {
         method: "POST",
-        mode: "cors",
+        mode: "no-cors",
         credentials: "omit",
         headers: {
           "Content-Type": "text/plain;charset=utf-8"
         },
         body: JSON.stringify(updated)
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
 
       // Read response to ensure the request is fully processed
       await response.text();
