@@ -351,40 +351,28 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="flex space-x-1 border border-slate-200 bg-slate-50 p-1 rounded-xl">
-              <button
-                onClick={() => { setView("dashboard"); setSelectedRequest(null); }}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${
-                  view === "dashboard" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <LayoutDashboard className="w-3.5 h-3.5" />
-                <span>대시보드</span>
-              </button>
-
-              {user.role === "admin" && (
-                <>
-                  <button
-                    onClick={() => setView("categories")}
-                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${
-                      view === "categories" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <Sliders className="w-3.5 h-3.5" />
-                    <span>카테고리 관리</span>
-                  </button>
-                  <button
-                    onClick={() => setView("passwords")}
-                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${
-                      view === "passwords" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    <Key className="w-3.5 h-3.5" />
-                    <span>비밀번호 관리</span>
-                  </button>
-                </>
-              )}
-            </div>
+            {user.role === "admin" && (
+              <div className="flex space-x-1 border border-slate-200 bg-slate-50 p-1 rounded-xl">
+                <button
+                  onClick={() => setView("categories")}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${
+                    view === "categories" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>카테고리 관리</span>
+                </button>
+                <button
+                  onClick={() => setView("passwords")}
+                  className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${
+                    view === "passwords" ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Key className="w-3.5 h-3.5" />
+                  <span>비밀번호 관리</span>
+                </button>
+              </div>
+            )}
 
             <div className="h-8 w-px bg-slate-200 mx-1" />
 
@@ -393,18 +381,7 @@ export default function App() {
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
                 <span>클라우드 동기화 완료</span>
               </div>
-              <div className="text-right">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  user.role === "admin" ? "bg-red-50 text-red-700 border border-red-100" :
-                  user.role === "결재자" ? "bg-amber-50 text-amber-700 border border-amber-100" :
-                  "bg-blue-50 text-blue-700 border border-blue-100"
-                }`}>
-                  {user.role}
-                </span>
-                {user.username && user.username !== user.role && (
-                  <p className="text-xs font-bold text-slate-700 mt-0.5">{user.username}</p>
-                )}
-              </div>
+
               <button
                 onClick={() => setUser(null)}
                 className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"

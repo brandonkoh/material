@@ -58,6 +58,7 @@ export default function Dashboard({
   // Period filter states
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Excel Upload state
   const [uploadError, setUploadError] = useState("");
@@ -110,6 +111,15 @@ export default function Dashboard({
     if (startDate && req.date < startDate) return false;
     if (endDate && req.date > endDate) return false;
 
+    // Search query check (fuzzy/similar on item name "품목명")
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      const matchesSearch = req.items.some((item) => 
+        item.itemName && item.itemName.toLowerCase().includes(query)
+      );
+      if (!matchesSearch) return false;
+    }
+
     return true;
   });
 
@@ -161,14 +171,22 @@ export default function Dashboard({
     });
 
     // Flatten all items from filtered requests to export together and assign their global index
-    const allItems = filteredRequests.flatMap((req) => 
+    let allItems = filteredRequests.flatMap((req) => 
       req.items.map(item => ({
         ...item,
         index: globalIndices.get(item.id) || 1
       }))
     );
+
+    // Filter items to only include searched terms if search is active
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      allItems = allItems.filter(item => item.itemName && item.itemName.toLowerCase().includes(query));
+    }
+
     const dateRangeStr = startDate && endDate ? `_${startDate}_to_${endDate}` : "_전체기간";
-    exportToExcel(allItems, `자재구매신청내역_집계${dateRangeStr}.xlsx`);
+    const searchSuffix = searchQuery.trim() ? `_검색_${searchQuery.trim()}` : "";
+    exportToExcel(allItems, `자재구매신청내역_집계${dateRangeStr}${searchSuffix}.xlsx`);
   };
 
   // Handle Excel Upload (Admin only)
@@ -247,10 +265,25 @@ export default function Dashboard({
       {/* Filter and Period Settings Bar */}
       <div className="bg-brand-panel p-5 border border-brand-dark space-y-4">
         <h3 className="text-xs font-bold text-brand-dark uppercase tracking-wide flex items-center gap-1.5 font-serif">
-          구매신청서 다운로드
+          구매신청서 검색 및 다운로드
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end text-xs">
+          {/* 품목명 검색 */}
+          <div>
+            <label className="block text-[10px] text-brand-dark/60 font-bold uppercase mb-1 font-mono">품목명 검색 (ITEM_SEARCH)</label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="품목명 검색..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-2 py-1 bg-white border border-brand-dark text-xs text-brand-dark focus:outline-none focus:border-brand-dark"
+              />
+              <Search className="absolute left-2.5 top-1.5 w-3.5 h-3.5 text-brand-dark/40" />
+            </div>
+          </div>
+
           <div>
             <label className="block text-[10px] text-brand-dark/60 font-bold uppercase mb-1 font-mono">시작 일자 (START_DATE)</label>
             <input
@@ -277,9 +310,10 @@ export default function Dashboard({
             <button
               onClick={handleExportByPeriod}
               id="btn-export-period-excel"
-              className="w-full py-1.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-950 text-xs font-bold transition-colors"
+              className="w-full py-1.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white border border-emerald-950 text-xs font-bold transition-colors flex items-center justify-center gap-1.5"
             >
-              설정 기간 데이터 엑셀 다운로드
+              <FileDown className="w-3.5 h-3.5" />
+              검색 결과 엑셀 다운로드
             </button>
           </div>
         </div>
@@ -387,17 +421,23 @@ export default function Dashboard({
                   const isExpanded = expandedRequestId === req.id;
                   const reqStatus = getRequestStatus(req);
 
+                  // Filter items of this request for display/aggregates if search query is active
+                  const displayedItems = req.items.filter(item => {
+                    if (!searchQuery.trim()) return true;
+                    return item.itemName && item.itemName.toLowerCase().includes(searchQuery.trim().toLowerCase());
+                  });
+
                   // Calculate incoming status rate
-                  const incomingCount = req.items.filter((item) => item.incomingStatus === "입고완료").length;
-                  const incomingRate = req.items.length > 0 ? Math.round((incomingCount / req.items.length) * 100) : 0;
+                  const incomingCount = displayedItems.filter((item) => item.incomingStatus === "입고완료").length;
+                  const incomingRate = displayedItems.length > 0 ? Math.round((incomingCount / displayedItems.length) * 100) : 0;
  
                   // Aggregates for summary row
-                  const totalQty = req.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
-                  const totalAmount = req.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                  const hasPhotos = req.items.some(item => !!item.photo);
-                  const summaryItemName = req.items.length > 1 
-                    ? `${req.items[0]?.itemName || "N/A"} 외 ${req.items.length - 1}건`
-                    : req.items[0]?.itemName || "신청 품목 없음";
+                  const totalQty = displayedItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+                  const totalAmount = displayedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                  const hasPhotos = displayedItems.some(item => !!item.photo);
+                  const summaryItemName = displayedItems.length > 1 
+                    ? `${displayedItems[0]?.itemName || "N/A"} 외 ${displayedItems.length - 1}건`
+                    : displayedItems[0]?.itemName || "신청 품목 없음";
  
                   return (
                     <React.Fragment key={req.id}>
@@ -475,10 +515,11 @@ export default function Dashboard({
                       </tr>
  
                       {/* Detail Rows */}
-                      {isExpanded && req.items.map((item, itemIdx) => {
+                      {isExpanded && displayedItems.map((item) => {
                         const globalIdx = getGlobalItemIndex(item.id, requests);
+                        const originalIdx = req.items.findIndex(x => x.id === item.id);
                         return (
-                          <tr key={`${req.id}-item-${itemIdx}`} className="bg-sky-50/50 border-b border-brand-dark/10 text-[10.5px] hover:bg-sky-100/50 transition-colors">
+                          <tr key={`${req.id}-item-${originalIdx}`} className="bg-sky-50/50 border-b border-brand-dark/10 text-[10.5px] hover:bg-sky-100/50 transition-colors">
                             <td className="py-2 px-2 border-r border-brand-dark/10 bg-amber-50/10 text-center"></td>
                             <td className="py-2 px-2 border-r border-brand-dark/10 bg-amber-50/30 text-center font-bold text-brand-dark/70 font-mono">{globalIdx}</td>
                           <td className="py-2 px-2 border-r border-brand-dark/10 font-mono text-[10px] text-brand-dark/70">{item.bomCode}</td>
@@ -497,7 +538,7 @@ export default function Dashboard({
                           </td>
                           <td className="py-2 px-2 border-r border-brand-dark/10 text-right font-mono font-bold text-brand-dark">{(item.price * item.quantity).toLocaleString()}</td>
                           <td className="py-2 px-2 border-r border-brand-dark/10 text-center text-xs font-bold">
-                            {item.photo ? <span className="text-emerald-700">有</span> : <span className="text-gray-400">無</span>}
+                            {item.photo ? <span className="text-emerald-700">유</span> : <span className="text-gray-400">무</span>}
                           </td>
                           <td className="py-2 px-2 border-r border-brand-dark/10">
                             <div className="truncate" title={item.buySite}>
@@ -542,7 +583,7 @@ export default function Dashboard({
                           </td>
                           <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
                             <button 
-                              onClick={() => onDeleteItem(req.id, itemIdx)}
+                              onClick={() => onDeleteItem(req.id, originalIdx)}
                               className="text-rose-400 hover:text-rose-600 transition-colors p-1"
                               title="품목 삭제"
                             >
@@ -583,13 +624,19 @@ export default function Dashboard({
             </div>
           ) : (
             sortedFilteredRequests.map((req) => {
+              // Filter items of this request for display/aggregates if search query is active
+              const displayedItems = req.items.filter(item => {
+                if (!searchQuery.trim()) return true;
+                return item.itemName && item.itemName.toLowerCase().includes(searchQuery.trim().toLowerCase());
+              });
+
               const rate = calculateApprovalRate(req);
-              const incomingCount = req.items.filter((item) => item.incomingStatus === "입고완료").length;
-              const incomingRate = req.items.length > 0 ? Math.round((incomingCount / req.items.length) * 100) : 0;
+              const incomingCount = displayedItems.filter((item) => item.incomingStatus === "입고완료").length;
+              const incomingRate = displayedItems.length > 0 ? Math.round((incomingCount / displayedItems.length) * 100) : 0;
               const monthlySeq = getRequestMonthlyIndex(req, requests);
               const docNumber = formatDocNumber(req.date, monthlySeq);
               const reqStatus = getRequestStatus(req);
-              const totalAmount = req.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+              const totalAmount = displayedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
               return (
                 <div key={req.id} className="bg-white border border-brand-dark shadow-md rounded-none">
@@ -636,31 +683,33 @@ export default function Dashboard({
 
                   {/* Card Body (List of items in this request) */}
                   <div className="p-3 divide-y divide-brand-dark/10">
-                    {req.items.map((item, itemIdx) => (
-                      <div key={item.id || itemIdx} className="py-3 first:pt-0 last:pb-0 space-y-2">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-bold text-xs text-brand-dark">{item.itemName || "품목명 없음"}</h4>
-                            <p className="text-[10px] text-brand-dark/60 font-mono">
-                              bom code: {item.bomCode || '-'} | {item.division} &gt; {item.sector} &gt; {item.item}
-                            </p>
+                    {displayedItems.map((item) => {
+                      const originalIdx = req.items.findIndex(x => x.id === item.id);
+                      return (
+                        <div key={item.id} className="py-3 first:pt-0 last:pb-0 space-y-2">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-bold text-xs text-brand-dark">{item.itemName || "품목명 없음"}</h4>
+                              <p className="text-[10px] text-brand-dark/60 font-mono">
+                                bom code: {item.bomCode || '-'} | {item.division} &gt; {item.sector} &gt; {item.item}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                item.status === '결재' ? 'bg-emerald-600 text-white' : 
+                                item.status === '거부' ? 'bg-rose-600 text-white' : 'bg-amber-100 text-amber-800 border border-amber-200'
+                              }`}>
+                                {item.status}
+                              </span>
+                              <button 
+                                onClick={() => onDeleteItem(req.id, originalIdx)}
+                                className="text-rose-500 hover:text-rose-700 p-1"
+                                title="품목 삭제"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
-                              item.status === '결재' ? 'bg-emerald-600 text-white' : 
-                              item.status === '거부' ? 'bg-rose-600 text-white' : 'bg-amber-100 text-amber-800 border border-amber-200'
-                            }`}>
-                              {item.status}
-                            </span>
-                            <button 
-                              onClick={() => onDeleteItem(req.id, itemIdx)}
-                              className="text-rose-500 hover:text-rose-700 p-1"
-                              title="품목 삭제"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </div>
 
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10.5px] bg-brand-bg/30 p-2.5 border border-brand-dark/5">
                           <div><span className="text-brand-dark/50">수량:</span> <span className="font-bold">{item.quantity} {item.unit}</span></div>
@@ -697,7 +746,8 @@ export default function Dashboard({
                           </div>
                         </div>
                       </div>
-                    ))}
+                    );
+                  })}
                   </div>
 
                   {/* Card Footer Summary */}
