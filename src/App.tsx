@@ -7,7 +7,7 @@ import { useState, useEffect } from "react";
 import { UserRole, PurchaseRequest, PurchaseItem } from "./types";
 import { initialCategories, Category } from "./data/categories";
 import { initialRequests } from "./data/initialRequests";
-import { getAllRequests, saveRequests, saveRequest as dbSaveRequest, deleteRequests as dbDeleteRequests } from "./utils/db";
+// Local DB functions removed to prevent QuotaExceededError
 import { getGasUrl, setGasUrl as saveGasUrlToLocalStorage, pullFromGas, pushToGas } from "./utils/sync";
 
 // Components
@@ -81,55 +81,40 @@ export default function App() {
 
     const loadRequests = async () => {
       setIsLoaded(false);
-      setSyncStatus("syncing");
-      setSyncMessage("로컬 데이터 로딩 중...");
       
-      let initialData: PurchaseRequest[] = [];
-      try {
-        const savedRequests = await getAllRequests();
-        if (savedRequests && savedRequests.length > 0) {
-          initialData = savedRequests;
-        } else {
-          initialData = initialRequests;
-          await saveRequests(initialRequests);
-        }
-        setRequests(initialData);
+      const initialData: PurchaseRequest[] = [...initialRequests];
 
-        // If GAS Web App URL is configured, pull the newest data from Google Sheets!
-        if (gasUrl) {
-          setSyncMessage("구글 시트 연동 데이터 불러오는 중...");
-          try {
-            const cloudData = await pullFromGas(gasUrl);
-            if (cloudData && cloudData.length > 0) {
-              await saveRequests(cloudData);
-              setRequests(cloudData);
-              setSyncStatus("success");
-              setSyncMessage("구글 시트 동기화 완료");
-            } else {
-              // If cloud is empty but we have local data, initialize cloud
-              if (initialData.length > 0) {
-                await pushToGas(gasUrl, initialData);
-              }
-              setSyncStatus("success");
-              setSyncMessage("구글 시트 연동 완료");
-            }
-          } catch (cloudErr: any) {
-            console.error("Failed to pull from Google Sheets on login:", cloudErr);
-            setSyncStatus("error");
-            setSyncMessage("구글 시트 동기화 실패 (오프라인 모드)");
+      // If GAS Web App URL is configured, pull the newest data from Google Sheets!
+      if (gasUrl) {
+        setSyncStatus("syncing");
+        setSyncMessage("구글 시트 연동 데이터 불러오는 중...");
+        try {
+          const cloudData = await pullFromGas(gasUrl);
+          if (cloudData && cloudData.length > 0) {
+            setRequests(cloudData);
+            setSyncStatus("success");
+            setSyncMessage("구글 시트 동기화 완료");
+          } else {
+            // If cloud is empty, initialize it with initialRequests!
+            setRequests(initialData);
+            await pushToGas(gasUrl, initialData);
+            setSyncStatus("success");
+            setSyncMessage("구글 시트 연동 완료");
           }
-        } else {
-          setSyncStatus("idle");
-          setSyncMessage("");
+        } catch (cloudErr: any) {
+          console.error("Failed to pull from Google Sheets on login:", cloudErr);
+          setRequests(initialData);
+          setSyncStatus("error");
+          setSyncMessage("구글 시트 동기화 실패 (임시 오프라인 모드)");
         }
-      } catch (err) {
-        console.error("Failed to load requests from LocalStorage:", err);
-        setRequests(initialRequests);
-        setSyncStatus("error");
-        setSyncMessage("데이터 불러오기 실패");
-      } finally {
-        setIsLoaded(true);
+      } else {
+        // If there's no GAS URL configured, we keep initialRequests in memory only!
+        setRequests(initialData);
+        setSyncStatus("idle");
+        setSyncMessage("로컬 임시 모드 (연동 URL 없음)");
       }
+      
+      setIsLoaded(true);
     };
 
     loadRequests();
@@ -193,7 +178,6 @@ export default function App() {
   const handleManualSyncPull = async (): Promise<number> => {
     if (!gasUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
     const data = await pullFromGas(gasUrl);
-    await saveRequests(data);
     setRequests(data);
     setSyncStatus("success");
     setSyncMessage("구글 시트 동기화 완료");
@@ -244,14 +228,8 @@ export default function App() {
       updatedRequests = [...requests, targetReq];
     }
     
-    try {
-      await dbSaveRequest(targetReq);
-      setRequests(updatedRequests);
-      triggerCloudPush(updatedRequests);
-    } catch (e) {
-      console.error("Storage error:", e);
-      alert("⚠️ 데이터 저장 중 오류가 발생했습니다. 브라우저 저장 공간을 확인해 주세요.");
-    }
+    setRequests(updatedRequests);
+    triggerCloudPush(updatedRequests);
     setView("dashboard");
     setSelectedRequest(null);
   };
@@ -303,26 +281,15 @@ export default function App() {
     });
 
     const updated = [...requests, ...newRequests];
-    try {
-      await saveRequests(updated);
-      setRequests(updated);
-      triggerCloudPush(updated);
-    } catch (e) {
-      console.error("Storage error during import:", e);
-      alert("⚠️ 용량 초과 또는 저장 오류로 인해 엑셀 데이터를 불러올 수 없습니다.");
-    }
+    setRequests(updated);
+    triggerCloudPush(updated);
   };
 
   // Helper: Delete Requests
   const handleDeleteRequests = async (ids: string[]) => {
-    try {
-      await dbDeleteRequests(ids);
-      const updated = requests.filter(r => !ids.includes(r.id));
-      setRequests(updated);
-      triggerCloudPush(updated);
-    } catch (e) {
-      console.error("Delete error:", e);
-    }
+    const updated = requests.filter(r => !ids.includes(r.id));
+    setRequests(updated);
+    triggerCloudPush(updated);
   };
 
   // Helper: Delete Item
@@ -333,14 +300,9 @@ export default function App() {
     const newItems = req.items.filter((_, idx) => idx !== itemIndex);
     const updatedReq = { ...req, items: newItems };
     
-    try {
-      await dbSaveRequest(updatedReq);
-      const updated = requests.map(r => r.id === requestId ? updatedReq : r);
-      setRequests(updated);
-      triggerCloudPush(updated);
-    } catch (e) {
-      console.error("Update item error:", e);
-    }
+    const updated = requests.map(r => r.id === requestId ? updatedReq : r);
+    setRequests(updated);
+    triggerCloudPush(updated);
   };
 
   // Render Content based on view
