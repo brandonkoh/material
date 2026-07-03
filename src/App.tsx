@@ -8,6 +8,7 @@ import { UserRole, PurchaseRequest, PurchaseItem } from "./types";
 import { initialCategories, Category } from "./data/categories";
 import { initialRequests } from "./data/initialRequests";
 import { getAllRequests, saveRequests, saveRequest as dbSaveRequest, deleteRequests as dbDeleteRequests } from "./utils/db";
+import { getGasUrl, setGasUrl as saveGasUrlToLocalStorage, pullFromGas, pushToGas } from "./utils/sync";
 
 // Components
 import Login from "./components/Login";
@@ -69,31 +70,70 @@ export default function App() {
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load requests once user logs in with password
+  // Google Apps Script Web App URL state & status
+  const [gasUrl, setGasUrl] = useState<string>(() => getGasUrl());
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
+  const [syncMessage, setSyncMessage] = useState<string>("");
+
+  // Load requests once user logs in with password (and sync with Google Sheets if URL is configured)
   useEffect(() => {
     if (!user) return;
 
     const loadRequests = async () => {
       setIsLoaded(false);
+      setSyncStatus("syncing");
+      setSyncMessage("로컬 데이터 로딩 중...");
+      
+      let initialData: PurchaseRequest[] = [];
       try {
         const savedRequests = await getAllRequests();
         if (savedRequests && savedRequests.length > 0) {
-          setRequests(savedRequests);
+          initialData = savedRequests;
         } else {
-          // If the LocalStorage is empty, populate it with initialRequests!
-          setRequests(initialRequests);
+          initialData = initialRequests;
           await saveRequests(initialRequests);
+        }
+        setRequests(initialData);
+
+        // If GAS Web App URL is configured, pull the newest data from Google Sheets!
+        if (gasUrl) {
+          setSyncMessage("구글 시트 연동 데이터 불러오는 중...");
+          try {
+            const cloudData = await pullFromGas(gasUrl);
+            if (cloudData && cloudData.length > 0) {
+              await saveRequests(cloudData);
+              setRequests(cloudData);
+              setSyncStatus("success");
+              setSyncMessage("구글 시트 동기화 완료");
+            } else {
+              // If cloud is empty but we have local data, initialize cloud
+              if (initialData.length > 0) {
+                await pushToGas(gasUrl, initialData);
+              }
+              setSyncStatus("success");
+              setSyncMessage("구글 시트 연동 완료");
+            }
+          } catch (cloudErr: any) {
+            console.error("Failed to pull from Google Sheets on login:", cloudErr);
+            setSyncStatus("error");
+            setSyncMessage("구글 시트 동기화 실패 (오프라인 모드)");
+          }
+        } else {
+          setSyncStatus("idle");
+          setSyncMessage("");
         }
       } catch (err) {
         console.error("Failed to load requests from LocalStorage:", err);
         setRequests(initialRequests);
+        setSyncStatus("error");
+        setSyncMessage("데이터 불러오기 실패");
       } finally {
         setIsLoaded(true);
       }
     };
 
     loadRequests();
-  }, [user]);
+  }, [user, gasUrl]);
 
   // 5. Navigation View State
   const [view, setView] = useState<"dashboard" | "form" | "passwords" | "categories">("dashboard");
@@ -133,6 +173,48 @@ export default function App() {
     localStorage.setItem("material_system_categories", JSON.stringify(initialCategories));
   };
 
+  // Helper to push updates to Google Sheets in the background
+  const triggerCloudPush = async (updatedList: PurchaseRequest[]) => {
+    if (!gasUrl) return;
+    setSyncStatus("syncing");
+    setSyncMessage("구글 시트에 데이터 저장 중...");
+    try {
+      await pushToGas(gasUrl, updatedList);
+      setSyncStatus("success");
+      setSyncMessage("구글 시트 동기화 완료");
+    } catch (err: any) {
+      console.error("Auto-sync save failed:", err);
+      setSyncStatus("error");
+      setSyncMessage("저장 실패 (구글 시트 동기화 오류)");
+    }
+  };
+
+  // Manual Pull function passed to AdminPasswordChange component
+  const handleManualSyncPull = async (): Promise<number> => {
+    if (!gasUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
+    const data = await pullFromGas(gasUrl);
+    await saveRequests(data);
+    setRequests(data);
+    setSyncStatus("success");
+    setSyncMessage("구글 시트 동기화 완료");
+    return data.length;
+  };
+
+  // Manual Push function passed to AdminPasswordChange component
+  const handleManualSyncPush = async (): Promise<number> => {
+    if (!gasUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
+    await pushToGas(gasUrl, requests);
+    setSyncStatus("success");
+    setSyncMessage("구글 시트 동기화 완료");
+    return requests.length;
+  };
+
+  // Save GAS Web App URL
+  const handleSaveGasUrl = (url: string) => {
+    saveGasUrlToLocalStorage(url);
+    setGasUrl(url);
+  };
+
   // Helper: Save Purchase Request
   const handleSavePurchaseRequest = async (updatedReq: Omit<PurchaseRequest, "id" | "index"> & { id?: string }) => {
     let updatedRequests: PurchaseRequest[];
@@ -165,6 +247,7 @@ export default function App() {
     try {
       await dbSaveRequest(targetReq);
       setRequests(updatedRequests);
+      triggerCloudPush(updatedRequests);
     } catch (e) {
       console.error("Storage error:", e);
       alert("⚠️ 데이터 저장 중 오류가 발생했습니다. 브라우저 저장 공간을 확인해 주세요.");
@@ -223,6 +306,7 @@ export default function App() {
     try {
       await saveRequests(updated);
       setRequests(updated);
+      triggerCloudPush(updated);
     } catch (e) {
       console.error("Storage error during import:", e);
       alert("⚠️ 용량 초과 또는 저장 오류로 인해 엑셀 데이터를 불러올 수 없습니다.");
@@ -235,6 +319,7 @@ export default function App() {
       await dbDeleteRequests(ids);
       const updated = requests.filter(r => !ids.includes(r.id));
       setRequests(updated);
+      triggerCloudPush(updated);
     } catch (e) {
       console.error("Delete error:", e);
     }
@@ -252,6 +337,7 @@ export default function App() {
       await dbSaveRequest(updatedReq);
       const updated = requests.map(r => r.id === requestId ? updatedReq : r);
       setRequests(updated);
+      triggerCloudPush(updated);
     } catch (e) {
       console.error("Update item error:", e);
     }
@@ -328,6 +414,11 @@ export default function App() {
           <AdminPasswordChange 
             passwords={passwords} 
             onSavePasswords={handleSavePasswords} 
+            gasUrl={gasUrl}
+            onSaveGasUrl={handleSaveGasUrl}
+            requests={requests}
+            onSyncPull={handleManualSyncPull}
+            onSyncPush={handleManualSyncPush}
           />
         );
 
@@ -369,7 +460,7 @@ export default function App() {
                   }`}
                 >
                   <Key className="w-3.5 h-3.5" />
-                  <span>비밀번호 관리</span>
+                  <span>비밀번호 및 구글 연동</span>
                 </button>
               </div>
             )}
@@ -378,8 +469,12 @@ export default function App() {
 
             <div className="flex items-center space-x-3">
               <div className="hidden sm:flex items-center space-x-2 text-[10px] font-bold text-slate-500 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-xl uppercase tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                <span>클라우드 동기화 완료</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  syncStatus === "syncing" ? "bg-amber-500 animate-pulse" :
+                  syncStatus === "success" ? "bg-green-500 animate-pulse" :
+                  syncStatus === "error" ? "bg-rose-500" : "bg-slate-300"
+                }`}></span>
+                <span>{syncMessage || (gasUrl ? "구글 시트 연동 대기" : "로컬 오프라인 모드")}</span>
               </div>
 
               <button
