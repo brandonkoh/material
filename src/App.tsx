@@ -65,7 +65,7 @@ export default function App() {
     return initialCategories;
   });
 
-  // 4. Purchase Requests Data (persistent in Firestore)
+  // 4. Purchase Requests Data (persistent in LocalStorage)
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
 
@@ -80,12 +80,12 @@ export default function App() {
         if (savedRequests && savedRequests.length > 0) {
           setRequests(savedRequests);
         } else {
-          // If the Firestore is empty, populate it with initialRequests!
+          // If the LocalStorage is empty, populate it with initialRequests!
           setRequests(initialRequests);
           await saveRequests(initialRequests);
         }
       } catch (err) {
-        console.error("Failed to load requests from Firestore:", err);
+        console.error("Failed to load requests from LocalStorage:", err);
         setRequests(initialRequests);
       } finally {
         setIsLoaded(true);
@@ -430,10 +430,10 @@ export default function App() {
             <div className="flex items-center space-x-4 text-[10px] uppercase tracking-widest font-bold">
               <span className="flex items-center">
                 <span className="w-1.5 h-1.5 rounded-full mr-2 bg-green-500 animate-pulse"></span>
-                Firebase Cloud Database (Durable Mode)
+                LocalStorage (Durable Offline Mode)
               </span>
               <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-              <span>Real-time Secure Connection</span>
+              <span>Local Offline Secure Connection</span>
             </div>
           </div>
         </footer>

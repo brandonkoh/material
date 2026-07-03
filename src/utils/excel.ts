@@ -4,8 +4,22 @@
  */
 
 // @ts-ignore
-import ExcelJS from "exceljs/dist/exceljs.min.js";
+import ExcelJSImport from "exceljs/dist/exceljs.min.js";
+import * as ExcelJSType from "exceljs";
 import { PurchaseItem } from "../types";
+
+const getExcelJS = (): any => {
+  if (ExcelJSImport && ExcelJSImport.Workbook) {
+    return ExcelJSImport;
+  }
+  if (ExcelJSImport && (ExcelJSImport as any).default && (ExcelJSImport as any).default.Workbook) {
+    return (ExcelJSImport as any).default;
+  }
+  if (typeof window !== "undefined" && (window as any).ExcelJS) {
+    return (window as any).ExcelJS;
+  }
+  return ExcelJSImport;
+};
 
 /**
  * Helper to convert ArrayBuffer to Base64 string
@@ -81,7 +95,7 @@ function getImageDimensions(photoStr: string): Promise<{ width: number; height: 
  * Exports purchase items to an Excel file.
  */
 export async function exportToExcel(items: PurchaseItem[], filename: string = "자재구매신청서.xlsx") {
-  const workbook = new ExcelJS.Workbook();
+  const workbook = new (getExcelJS().Workbook)();
   const worksheet = workbook.addWorksheet("자재구매신청서");
 
   const headers = [
@@ -254,7 +268,7 @@ export async function exportToExcel(items: PurchaseItem[], filename: string = "�
 /**
  * Helper to get string value from exceljs cell
  */
-const getCellValue = (cell: ExcelJS.Cell): string => {
+const getCellValue = (cell: ExcelJSType.Cell): string => {
   const value = cell.value;
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value.trim();
@@ -280,7 +294,7 @@ const getCellValue = (cell: ExcelJS.Cell): string => {
 export async function importFromExcel(file: File): Promise<Partial<PurchaseItem>[]> {
   try {
     const data = await file.arrayBuffer();
-    const workbook = new ExcelJS.Workbook();
+    const workbook = new (getExcelJS().Workbook)();
     await workbook.xlsx.load(data);
     
     const worksheet = workbook.worksheets[0];
