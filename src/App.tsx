@@ -77,10 +77,8 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
   const [syncMessage, setSyncMessage] = useState<string>("");
 
-  // Load requests once user logs in with password (and sync with Google Sheets if URL is configured)
+  // Load requests when app mounts or user login status changes (sync with Google Sheets)
   useEffect(() => {
-    if (!user) return;
-
     const loadRequests = async () => {
       setIsLoaded(false);
       
