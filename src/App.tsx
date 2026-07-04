@@ -83,7 +83,8 @@ export default function App() {
       setIsLoaded(false);
       
       const initialData: PurchaseRequest[] = [...initialRequests];
-      const activeUrl = "https://script.google.com/macros/s/AKfycbymRWyDsy9AYcGHbmkDuoZVAQK6E9Y8s9UguJAH4E3tTj6AFHa9y3OAgu8Gw5kInbOM/exec";
+      // Netlify에 등록한 VITE_GOOGLE_SCRIPT_URL 환경변수를 명시적으로 가져옵니다.
+const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT_URL || gasUrl;
       
 
       // If GAS Web App URL is configured, pull the newest data from Google Sheets!
@@ -225,7 +226,8 @@ export default function App() {
 
   // Helper to push updates to Google Sheets in the background
   const triggerCloudPush = async (updatedList: PurchaseRequest[]) => {
-    const activeUrl = "https://script.google.com/macros/s/AKfycbymRWyDsy9AYcGHbmkDuoZVAQK6E9Y8s9UguJAH4E3tTj6AFHa9y3OAgu8Gw5kInbOM/exec";
+    // Netlify에 등록한 VITE_GOOGLE_SCRIPT_URL 환경변수를 명시적으로 가져옵니다.
+const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT_URL || gasUrl;
     if (!activeUrl) return;
     setSyncStatus("syncing");
     setSyncMessage("구글 시트에 데이터 저장 중...");
@@ -242,7 +244,8 @@ export default function App() {
 
   // Manual Pull function passed to AdminPasswordChange component
   const handleManualSyncPull = async (): Promise<number> => {
-    const activeUrl = "https://script.google.com/macros/s/AKfycbymRWyDsy9AYcGHbmkDuoZVAQK6E9Y8s9UguJAH4E3tTj6AFHa9y3OAgu8Gw5kInbOM/exec";
+    // Netlify에 등록한 VITE_GOOGLE_SCRIPT_URL 환경변수를 명시적으로 가져옵니다.
+const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT_URL || gasUrl;
     if (!activeUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
     const data = await pullFromGas(activeUrl);
     setRequests(data);
@@ -253,7 +256,8 @@ export default function App() {
 
   // Manual Push function passed to AdminPasswordChange component
   const handleManualSyncPush = async (): Promise<number> => {
-    const activeUrl = "https://script.google.com/macros/s/AKfycbymRWyDsy9AYcGHbmkDuoZVAQK6E9Y8s9UguJAH4E3tTj6AFHa9y3OAgu8Gw5kInbOM/exec";
+    // Netlify에 등록한 VITE_GOOGLE_SCRIPT_URL 환경변수를 명시적으로 가져옵니다.
+const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT_URL || gasUrl;
     if (!activeUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
     await pushToGas(activeUrl, requests);
     setSyncStatus("success");
@@ -350,7 +354,8 @@ export default function App() {
 
     const updated = [...requests, ...newRequests];
 
-    const activeUrl = "https://script.google.com/macros/s/AKfycbymRWyDsy9AYcGHbmkDuoZVAQK6E9Y8s9UguJAH4E3tTj6AFHa9y3OAgu8Gw5kInbOM/exec";
+    // Netlify에 등록한 VITE_GOOGLE_SCRIPT_URL 환경변수를 명시적으로 가져옵니다.
+const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT_URL || gasUrl;
     if (!activeUrl) {
       throw new Error("구글 시트 연동 URL이 설정되지 않았습니다.");
     }
