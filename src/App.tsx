@@ -84,7 +84,13 @@ export default function App() {
       
       const initialData: PurchaseRequest[] = [...initialRequests];
       // Netlify에 등록한 VITE_GOOGLE_SCRIPT_URL 환경변수를 명시적으로 가져옵니다.
-const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT_URL || gasUrl;
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+const activeUrl = "https://script.google.com/macros/s/AKfycbymRWyDsy9AYcGHbmkDuoZVAQK6E9Y8s9UguJAH4E3tTj6AFHa9y3OAgu8Gw5kInbOM/exec
+";
+
+console.log("🎯 [하드코딩 연결 주소]:", activeUrl);
       
 
       // If GAS Web App URL is configured, pull the newest data from Google Sheets!
@@ -227,7 +233,12 @@ const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT
   // Helper to push updates to Google Sheets in the background
   const triggerCloudPush = async (updatedList: PurchaseRequest[]) => {
     // Netlify에 등록한 VITE_GOOGLE_SCRIPT_URL 환경변수를 명시적으로 가져옵니다.
-const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT_URL || gasUrl;
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+const activeUrl = "https://script.google.com/macros/s/AKfycbymRWyDsy9AYcGHbmkDuoZVAQK6E9Y8s9UguJAH4E3tTj6AFHa9y3OAgu8Gw5kInbOM/exec
+";
+
+console.log("🎯 [하드코딩 연결 주소]:", activeUrl);
     if (!activeUrl) return;
     setSyncStatus("syncing");
     setSyncMessage("구글 시트에 데이터 저장 중...");
@@ -245,7 +256,12 @@ const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT
   // Manual Pull function passed to AdminPasswordChange component
   const handleManualSyncPull = async (): Promise<number> => {
     // Netlify에 등록한 VITE_GOOGLE_SCRIPT_URL 환경변수를 명시적으로 가져옵니다.
-const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT_URL || gasUrl;
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+const activeUrl = "https://script.google.com/macros/s/AKfycbymRWyDsy9AYcGHbmkDuoZVAQK6E9Y8s9UguJAH4E3tTj6AFHa9y3OAgu8Gw5kInbOM/exec
+";
+
+console.log("🎯 [하드코딩 연결 주소]:", activeUrl);
     if (!activeUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
     const data = await pullFromGas(activeUrl);
     setRequests(data);
@@ -257,7 +273,12 @@ const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT
   // Manual Push function passed to AdminPasswordChange component
   const handleManualSyncPush = async (): Promise<number> => {
     // Netlify에 등록한 VITE_GOOGLE_SCRIPT_URL 환경변수를 명시적으로 가져옵니다.
-const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT_URL || gasUrl;
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+const activeUrl = "https://script.google.com/macros/s/AKfycbymRWyDsy9AYcGHbmkDuoZVAQK6E9Y8s9UguJAH4E3tTj6AFHa9y3OAgu8Gw5kInbOM/exec
+";
+
+console.log("🎯 [하드코딩 연결 주소]:", activeUrl);
     if (!activeUrl) throw new Error("Google Apps Script URL이 설정되지 않았습니다.");
     await pushToGas(activeUrl, requests);
     setSyncStatus("success");
@@ -355,7 +376,12 @@ const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT
     const updated = [...requests, ...newRequests];
 
     // Netlify에 등록한 VITE_GOOGLE_SCRIPT_URL 환경변수를 명시적으로 가져옵니다.
-const activeUrl = import.meta.env.VITE_GOOGLE_SCRIPT_URL || window.GOOGLE_SCRIPT_URL || gasUrl;
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+// 본인의 구글 스크립트 주소를 따옴표 안에 직접 넣으세요 (끝이 /exec로 끝나는 주소)
+const activeUrl = "https://script.google.com/macros/s/AKfycbymRWyDsy9AYcGHbmkDuoZVAQK6E9Y8s9UguJAH4E3tTj6AFHa9y3OAgu8Gw5kInbOM/exec
+";
+
+console.log("🎯 [하드코딩 연결 주소]:", activeUrl);
     if (!activeUrl) {
       throw new Error("구글 시트 연동 URL이 설정되지 않았습니다.");
     }
